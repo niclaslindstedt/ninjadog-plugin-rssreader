@@ -1,0 +1,11 @@
+{
+  "feeds": [],
+  "updateInterval": 1,
+  "resolution": "720p",
+  "source": "",
+  "sort": true,
+  "saveTo": "d:\\torrents\\shows",
+  "downloadProperAndRepack": true,
+  "skipForeign": true,
+  "shows": []
+}

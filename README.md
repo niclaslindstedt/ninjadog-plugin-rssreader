@@ -1,0 +1,1 @@
+ninjakatt-plugin-torrentrss

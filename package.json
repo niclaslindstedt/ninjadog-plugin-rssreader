@@ -1,0 +1,26 @@
+{
+  "name": "ninjakatt-plugin-torrentrss",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lindstrm/ninjakatt-plugin-torrentrss.git"
+  },
+  "homepage": "https://github.com/lindstrm/ninjakatt-plugin-torrentrss",
+  "bugs": {
+    "url": "https://github.com/lindstrm/ninjakatt-plugin-torrentrss/issues"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "ninjakatt-plugin-base": "^1.0.0",
+    "parse-torrent-title": "^1.2.0",
+    "pretty-bytes": "^5.1.0",
+    "rss-parser": "^3.4.2"
+  }
+}
