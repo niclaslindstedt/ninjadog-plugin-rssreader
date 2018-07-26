@@ -16,7 +16,8 @@ module.exports = class TorrentRSS extends Base {
     emitter.emit(
       'message',
       `Started Torrent RSS feed timer (${this.settings.updateInterval}m)`,
-      'start'
+      'start',
+      TorrentRSS.name
     );
     this.checkFeeds();
 
@@ -46,15 +47,13 @@ module.exports = class TorrentRSS extends Base {
         .reverse()
         .map(entry => ({
           ...entry,
+          release: entry.title.replace(/\s/g, '.'),
           ...ptt.parse(entry.title)
         }))
         .map(entry => ({
           ...entry,
+          fileName: `${entry.release}.torrent`,
           title: entry.title.toLowerCase(),
-          release: entry.link
-            .split('/')
-            .pop()
-            .replace('.torrent', ''),
           savePath: this.getSavePath(entry)
         }));
 
@@ -73,7 +72,10 @@ module.exports = class TorrentRSS extends Base {
 
       // Remove foreign if not wanted
       if (settings.skipForeign === true) {
-        feed = feed.filter(entry => entry.categories.indexOf('Foreign') === -1);
+        feed = feed.filter(
+          entry =>
+            entry.categories ? entry.categories.indexOf('Foreign') === -1 : true
+        );
       }
 
       // Check local files and remove duplicates if not proper or repack
@@ -173,7 +175,11 @@ module.exports = class TorrentRSS extends Base {
 
       // Download remaining torrents
       feed.forEach(entry => {
-        emitter.emit('file.download', entry.link, entry.savePath);
+        emitter.emit(
+          'file.download',
+          entry.link,
+          path.resolve(entry.savePath, entry.fileName)
+        );
       });
 
       this.feedTimer();
@@ -198,7 +204,8 @@ module.exports = class TorrentRSS extends Base {
           emitter.emit(
             'message',
             `Added ${newShows} show/s to torrent rss list.`,
-            'add'
+            'add',
+            TorrentRSS.name
           );
         }
 
