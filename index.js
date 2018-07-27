@@ -181,9 +181,9 @@ module.exports = class TorrentRSS extends Base {
           path.resolve(entry.savePath, entry.fileName)
         );
       });
-
-      this.feedTimer();
     });
+
+    this.feedTimer();
   }
 
   setupListeners() {
