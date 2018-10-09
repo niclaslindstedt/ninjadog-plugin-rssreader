@@ -78,6 +78,11 @@ module.exports = class TorrentRSS extends Base {
         );
       }
 
+      // Remove packs if not wanted
+      if (settings.skipPacks === true) {
+        feed = feed.filter(entry => !!entry.episode);
+      }
+
       // Check local files and remove duplicates if not proper or repack
       feed = feed.filter(entry => {
         fs.ensureDirSync(entry.savePath);

@@ -7,5 +7,6 @@
   "saveTo": "d:\\torrents\\shows",
   "downloadProperAndRepack": true,
   "skipForeign": true,
+  "skipPacks": true,
   "shows": []
 }
