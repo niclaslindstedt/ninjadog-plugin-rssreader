@@ -1,4 +1,3 @@
-const Base = require('ninjakatt-plugin-base');
 const Rss = require('rss-parser');
 const ptt = require('parse-torrent-title');
 const fs = require('fs-extra');
@@ -6,9 +5,9 @@ const path = require('path');
 
 const rss = new Rss();
 const emitter = global.emitter;
-module.exports = class TorrentRSS extends Base {
+module.exports = class TorrentRSS {
   constructor() {
-    super(__dirname);
+    this.construct(__dirname);
   }
 
   setup() {
@@ -37,6 +36,11 @@ module.exports = class TorrentRSS extends Base {
   checkFeeds() {
     const settings = this.settings;
     const feeds = settings.feeds;
+
+    if (!settings.shows.length) {
+      return;
+    }
+
     const shows = settings.shows.map(show => show.toLowerCase());
 
     feeds.forEach(async feed => {
@@ -72,9 +76,8 @@ module.exports = class TorrentRSS extends Base {
 
       // Remove foreign if not wanted
       if (settings.skipForeign === true) {
-        feed = feed.filter(
-          entry =>
-            entry.categories ? entry.categories.indexOf('Foreign') === -1 : true
+        feed = feed.filter(entry =>
+          entry.categories ? entry.categories.indexOf('Foreign') === -1 : true
         );
       }
 
