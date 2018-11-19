@@ -8,6 +8,7 @@ const emitter = global.emitter;
 module.exports = class TorrentRSS {
   constructor() {
     this.construct(__dirname);
+    this.downloadList = [];
   }
 
   setup() {
@@ -35,13 +36,10 @@ module.exports = class TorrentRSS {
 
   checkFeeds() {
     const settings = this.settings;
+    const showsToDownload = settings.shows || [];
     const feeds = settings.feeds;
 
-    if (!settings.shows.length) {
-      return;
-    }
-
-    const shows = settings.shows.map(show => show.toLowerCase());
+    const shows = showsToDownload.map(show => show.toLowerCase());
 
     feeds.forEach(async feed => {
       feed = await rss.parseURL(feed);
@@ -61,8 +59,11 @@ module.exports = class TorrentRSS {
           savePath: this.getSavePath(entry)
         }));
 
+      // Remove files already downloaded
+      feed = feed.filter(entry => !this.downloadList.includes(entry.fileName));
+
       // Remove entries not in the download list
-      feed = feed.filter(entry => shows.indexOf(entry.title) > -1);
+      feed = feed.filter(entry => shows.includes(entry.title));
 
       // Remove incorrect resolutions
       feed = feed.filter(entry => entry.resolution === settings.resolution);
@@ -189,6 +190,9 @@ module.exports = class TorrentRSS {
           path.resolve(entry.savePath, entry.fileName)
         );
       });
+
+      this.downloadList.unshift(...feed.map(e => e.fileName));
+      this.downloadList.length = 20;
     });
 
     this.feedTimer();
