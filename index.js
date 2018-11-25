@@ -9,16 +9,26 @@ module.exports = class TorrentRSS {
   constructor() {
     this.construct(__dirname);
     this.downloadList = [];
+    this.removedShows = [];
+  }
+
+  file(filename) {
+    return `torrentrss_${filename}`;
   }
 
   setup() {
+    this.settings.shows = this.settings.shows.map(s => s.toLowerCase());
+
     this.setupListeners();
+    this.loadRemovedShows();
+
     emitter.emit(
       'message',
       `Started Torrent RSS feed timer (${this.settings.updateInterval}m)`,
       'start',
       TorrentRSS.name
     );
+
     this.checkFeeds();
 
     setTimeout(() => {
@@ -38,8 +48,6 @@ module.exports = class TorrentRSS {
     const settings = this.settings;
     const showsToDownload = settings.shows || [];
     const feeds = settings.feeds;
-
-    const shows = showsToDownload.map(show => show.toLowerCase());
 
     feeds.forEach(async feed => {
       feed = await rss.parseURL(feed);
@@ -63,7 +71,7 @@ module.exports = class TorrentRSS {
       feed = feed.filter(entry => !this.downloadList.includes(entry.fileName));
 
       // Remove entries not in the download list
-      feed = feed.filter(entry => shows.includes(entry.title));
+      feed = feed.filter(entry => showsToDownload.includes(entry.title));
 
       // Remove incorrect resolutions
       feed = feed.filter(entry => entry.resolution === settings.resolution);
@@ -198,29 +206,15 @@ module.exports = class TorrentRSS {
     this.feedTimer();
   }
 
+  async loadRemovedShows() {
+    this.removedShows = this.readFile(this.file('removedshows.json')) || [];
+  }
+
   setupListeners() {
     emitter.register(
       'torrentrss.add-show',
-      show => {
-        let newShows = 0;
-        if (typeof show === 'object') {
-          show = show.filter(s => this.settings.shows.indexOf(s) === -1);
-          this.settings.shows = [...this.settings.shows, ...show];
-          newShows = show.length;
-        } else {
-          newShows = 1;
-          this.settings.shows.push(show);
-        }
-
-        if (newShows > 0) {
-          emitter.emit(
-            'message',
-            `Added ${newShows} show/s to torrent rss list.`,
-            'add',
-            TorrentRSS.name
-          );
-        }
-
+      (show, source) => {
+        this.addShow(show, source);
         return Promise.resolve(this.settings.shows);
       },
       TorrentRSS.name
@@ -238,6 +232,134 @@ module.exports = class TorrentRSS {
         res.status(200).send(this.settings.shows);
       }
     );
+
+    emitter.emit(
+      'webserver.add-route',
+      'get',
+      `/${prefix}/removed-shows`,
+      (req, res) => {
+        res.status(200).send(this.removedShows);
+      }
+    );
+
+    emitter.emit(
+      'webserver.add-route',
+      'post',
+      `/${prefix}/shows`,
+      (req, res) => {
+        const show = req.body.show;
+        if (!show || this.settings.shows.includes(show)) {
+          return;
+        }
+        if (this.removedShows.includes(show)) {
+          return res.status(412).send();
+        }
+        this.addShow(show);
+        res.status(200).send(this.settings.shows);
+      }
+    );
+
+    emitter.emit(
+      'webserver.add-route',
+      'delete',
+      `/${prefix}/shows`,
+      (req, res) => {
+        const show = req.query.show;
+        if (!show || this.settings.shows.indexOf(show) === -1) {
+          return;
+        }
+        this.removeShow(show);
+        res.status(200).send(this.settings.shows);
+      }
+    );
+
+    emitter.emit(
+      'webserver.add-route',
+      'delete',
+      `/${prefix}/removed-shows`,
+      (req, res) => {
+        const show = req.query.show;
+        if (!show || !this.removedShows.includes(show)) {
+          return;
+        }
+        this.restoreShow(show);
+        res.status(200).send(this.settings.shows);
+      }
+    );
+  }
+
+  addShow(show, source) {
+    let newShows = 0;
+    if (Array.isArray(show)) {
+      show = show.map(s => s.toLowerCase());
+      show = show.filter(s => this.settings.shows.indexOf(s) === -1);
+      show = show.filter(s => !this.removedShows.includes(s));
+
+      if (show.length === 0) {
+        return;
+      }
+
+      this.settings.shows = [...this.settings.shows, ...show];
+      newShows = show.join(', ');
+    } else if (!this.removedShows.includes(show)) {
+      newShows = show;
+      this.settings.shows.push(show);
+    }
+
+    if (newShows) {
+      let message = `Added ${newShows} to list.`;
+
+      if (source) {
+        message = message.replace(/(.*)\.$/, `$1 from ${source}.`);
+      }
+
+      emitter.emit('message', message, 'add', TorrentRSS.name);
+    }
+
+    this.saveSettings(this.settings);
+  }
+
+  removeShow(show) {
+    let removedShows;
+    if (Array.isArray(show)) {
+      show = show.map(s => s.toLowerCase());
+      show = show.filter(s => this.settings.shows.indexOf(s) > -1);
+
+      if (show.length === 0) {
+        return;
+      }
+
+      shows.map(s => this.settings.shows.indexOf(s));
+
+      shows.forEach(index => this.settings.shows.splice(index, 1));
+
+      this.removedShows.push(...shows);
+
+      removedShows = show.join(', ');
+    } else {
+      removedShows = show;
+      this.removedShows.push(show);
+      this.settings.shows.splice(this.settings.shows.indexOf(show), 1);
+    }
+
+    if (removedShows) {
+      emitter.emit(
+        'message',
+        `Removed ${removedShows} from list.`,
+        'remove',
+        TorrentRSS.name
+      );
+
+      this.writeFile(this.file('removedshows.json'), this.removedShows);
+    }
+  }
+
+  restoreShow(show) {
+    const removedIndex = this.removedShows.indexOf(show);
+    this.removedShows.splice(removedIndex, 1);
+    this.writeFile(this.file('removedshows.json'), this.removedShows);
+
+    this.addShow(show);
   }
 
   getSavePath(entry) {
