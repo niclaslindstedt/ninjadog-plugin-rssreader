@@ -338,7 +338,9 @@ module.exports = class TorrentRSS {
       removedShows = show.join(', ');
     } else {
       removedShows = show;
-      this.removedShows.push(show);
+      if (!this.removedShows.includes(show)) {
+        this.removedShows.push(show);
+      }
       this.settings.shows.splice(this.settings.shows.indexOf(show), 1);
     }
 
@@ -350,6 +352,7 @@ module.exports = class TorrentRSS {
         TorrentRSS.name
       );
 
+      this.saveSettings(this.settings);
       this.writeFile(this.file('removedshows.json'), this.removedShows);
     }
   }
