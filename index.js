@@ -3,13 +3,20 @@ const ptt = require('parse-torrent-title');
 const fs = require('fs-extra');
 const path = require('path');
 
+const ShowStatistic = require('./Entities/ShowStatistics');
+const { extractRootDomain } = require('./helpers');
+
 const rss = new Rss();
 const emitter = global.emitter;
 module.exports = class TorrentRSS {
   constructor() {
     this.construct(__dirname);
+    /** @type {String[]} */
     this.downloadList = [];
+    /** @type {String[]} */
     this.removedShows = [];
+    /** @type {ShowStatistic[]} */
+    this.statistics = [];
   }
 
   file(filename) {
@@ -21,6 +28,7 @@ module.exports = class TorrentRSS {
 
     this.setupListeners();
     this.loadRemovedShows();
+    this.loadStatistics();
 
     emitter.emit(
       'message',
@@ -49,8 +57,8 @@ module.exports = class TorrentRSS {
     const showsToDownload = settings.shows || [];
     const feeds = settings.feeds;
 
-    feeds.forEach(async feed => {
-      feed = await rss.parseURL(feed);
+    feeds.forEach(async feedUrl => {
+      let feed = await rss.parseURL(feedUrl);
 
       // Add info to entries
       feed = feed.items
@@ -197,6 +205,11 @@ module.exports = class TorrentRSS {
           entry.link,
           path.resolve(entry.savePath, entry.fileName)
         );
+
+        this.updateStatsForShow(entry.title, {
+          date: new Date(),
+          tracker: extractRootDomain(feedUrl)
+        });
       });
 
       this.downloadList.unshift(...feed.map(e => e.fileName));
@@ -208,6 +221,52 @@ module.exports = class TorrentRSS {
 
   async loadRemovedShows() {
     this.removedShows = this.readFile(this.file('removedshows.json')) || [];
+  }
+
+  async loadStatistics() {
+    this.statistics = this.readFile(this.file('statistics.json')) || [];
+
+    if (this.statistics.length) {
+      this.statistics = this.statistics.map(show => new ShowStatistic(show));
+    }
+  }
+
+  updateStatsForShow(show, downloadInfo) {
+    const idx = this.statistics.findIndex(stat => stat.name === show);
+    const match = idx === -1 ? false : true;
+
+    /** @type {ShowStatistic} */
+    let showStat;
+    if (!match) {
+      showStat = new ShowStatistic({ name: show });
+    } else {
+      showStat = this.statistics[idx];
+    }
+
+    showStat.add(downloadInfo);
+
+    if (!match) {
+      this.statistics.push(showStat);
+    } else {
+      this.statistics[idx] = showStat;
+    }
+
+    this.writeFile(this.file('statistics.json'), this.statistics);
+  }
+
+  getShowsWithStats(shows) {
+    return shows.map(name => {
+      const downloads = (
+        this.statistics.find(s => s.name === name) || {
+          downloads: []
+        }
+      ).downloads;
+
+      return {
+        name,
+        downloads
+      };
+    });
   }
 
   setupListeners() {
@@ -229,7 +288,7 @@ module.exports = class TorrentRSS {
       'get',
       `/${prefix}/shows`,
       (req, res) => {
-        res.status(200).send(this.settings.shows);
+        res.status(200).send(this.getShowsWithStats(this.settings.shows));
       }
     );
 
@@ -238,7 +297,7 @@ module.exports = class TorrentRSS {
       'get',
       `/${prefix}/removed-shows`,
       (req, res) => {
-        res.status(200).send(this.removedShows);
+        res.status(200).send(this.getShowsWithStats(this.removedShows));
       }
     );
 
