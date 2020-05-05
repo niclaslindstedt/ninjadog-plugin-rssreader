@@ -298,8 +298,11 @@ module.exports = class TorrentRSS {
       `/${prefix}/shows`,
       (req, res) => {
         const show = req.body.show;
-        if (!show || this.settings.shows.includes(show)) {
-          return;
+        if (!show) {
+          return res.status(400).send();
+        }
+        if (this.settings.shows.includes(show)) {
+          return res.status(409).send();
         }
         if (this.removedShows.includes(show)) {
           return res.status(412).send();
