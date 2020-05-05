@@ -18,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.18.0",
+    "fs-extra": "^9.0.0",
     "parse-torrent-title": "^1.2.0",
     "pretty-bytes": "^5.1.0",
     "rss-parser": "^3.4.2"

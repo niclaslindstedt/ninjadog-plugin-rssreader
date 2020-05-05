@@ -24,7 +24,7 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
-    this.settings.shows = this.settings.shows.map(s => s.toLowerCase());
+    this.settings.shows = this.settings.shows.map((s) => s.toLowerCase());
 
     this.setupListeners();
     this.loadRemovedShows();
@@ -57,65 +57,67 @@ module.exports = class TorrentRSS {
     const showsToDownload = settings.shows || [];
     const feeds = settings.feeds;
 
-    feeds.forEach(async feedUrl => {
+    feeds.forEach(async (feedUrl) => {
       let feed = await rss.parseURL(feedUrl);
 
       // Add info to entries
       feed = feed.items
         .reverse()
-        .map(entry => ({
+        .map((entry) => ({
           ...entry,
           release: entry.title.replace(/\s/g, '.'),
-          ...ptt.parse(entry.title)
+          ...ptt.parse(entry.title),
         }))
-        .map(entry => ({
+        .map((entry) => ({
           ...entry,
           fileName: `${entry.release}.torrent`,
           title: entry.title.toLowerCase(),
-          savePath: this.getSavePath(entry)
+          savePath: this.getSavePath(entry),
         }));
 
       // Remove files already downloaded
-      feed = feed.filter(entry => !this.downloadList.includes(entry.fileName));
+      feed = feed.filter(
+        (entry) => !this.downloadList.includes(entry.fileName)
+      );
 
       // Remove entries not in the download list
-      feed = feed.filter(entry => showsToDownload.includes(entry.title));
+      feed = feed.filter((entry) => showsToDownload.includes(entry.title));
 
       // Remove incorrect resolutions
-      feed = feed.filter(entry => entry.resolution === settings.resolution);
+      feed = feed.filter((entry) => entry.resolution === settings.resolution);
 
       // Remove incorrect sources
       feed = feed.filter(
-        entry =>
+        (entry) =>
           entry.source === settings.source.toLowerCase() ||
           settings.source === ''
       );
 
       // Remove foreign if not wanted
       if (settings.skipForeign === true) {
-        feed = feed.filter(entry =>
+        feed = feed.filter((entry) =>
           entry.categories ? entry.categories.indexOf('Foreign') === -1 : true
         );
       }
 
       // Remove packs if not wanted
       if (settings.skipPacks === true) {
-        feed = feed.filter(entry => !!entry.episode);
+        feed = feed.filter((entry) => !!entry.episode);
       }
 
       // Check local files and remove duplicates if not proper or repack
-      feed = feed.filter(entry => {
+      feed = feed.filter((entry) => {
         fs.ensureDirSync(entry.savePath);
         let files = fs
           .readdirSync(entry.savePath)
-          .map(file => ({
+          .map((file) => ({
             file: file.toLowerCase(),
             ...ptt.parse(file),
             time: fs
               .statSync(path.resolve(entry.savePath, file))
-              .mtime.getTime()
+              .mtime.getTime(),
           }))
-          .filter(file => file.title.toLowerCase() === entry.title)
+          .filter((file) => file.title.toLowerCase() === entry.title)
           .sort((a, b) => b.time - a.time);
 
         let keep = true;
@@ -188,7 +190,7 @@ module.exports = class TorrentRSS {
           y++;
         } while (
           feed.filter(
-            e =>
+            (e) =>
               e &&
               entry &&
               entry.title === e.title &&
@@ -199,7 +201,7 @@ module.exports = class TorrentRSS {
       }
 
       // Download remaining torrents
-      feed.forEach(entry => {
+      feed.forEach((entry) => {
         emitter.emit(
           'file.download',
           entry.link,
@@ -208,11 +210,11 @@ module.exports = class TorrentRSS {
 
         this.updateStatsForShow(entry.title, {
           date: new Date(),
-          tracker: extractRootDomain(feedUrl)
+          tracker: extractRootDomain(feedUrl),
         });
       });
 
-      this.downloadList.unshift(...feed.map(e => e.fileName));
+      this.downloadList.unshift(...feed.map((e) => e.fileName));
       this.downloadList.length = 20;
     });
 
@@ -227,12 +229,12 @@ module.exports = class TorrentRSS {
     this.statistics = this.readFile(this.file('statistics.json')) || [];
 
     if (this.statistics.length) {
-      this.statistics = this.statistics.map(show => new ShowStatistic(show));
+      this.statistics = this.statistics.map((show) => new ShowStatistic(show));
     }
   }
 
   updateStatsForShow(show, downloadInfo) {
-    const idx = this.statistics.findIndex(stat => stat.name === show);
+    const idx = this.statistics.findIndex((stat) => stat.name === show);
     const match = idx === -1 ? false : true;
 
     /** @type {ShowStatistic} */
@@ -255,29 +257,18 @@ module.exports = class TorrentRSS {
   }
 
   getShowsWithStats(shows) {
-    return shows.map(name => {
+    return shows.map((name) => {
       const downloads = (
-        this.statistics.find(s => s.name === name) || {
-          downloads: []
+        this.statistics.find((s) => s.name === name) || {
+          downloads: [],
         }
       ).downloads;
 
       return {
         name,
-        downloads
+        downloads,
       };
     });
-  }
-
-  setupListeners() {
-    emitter.register(
-      'torrentrss.add-show',
-      (show, source) => {
-        this.addShow(show, source);
-        return Promise.resolve(this.settings.shows);
-      },
-      TorrentRSS.name
-    );
   }
 
   addWebroutes() {
@@ -350,9 +341,9 @@ module.exports = class TorrentRSS {
   addShow(show, source) {
     let newShows = 0;
     if (Array.isArray(show)) {
-      show = show.map(s => s.toLowerCase());
-      show = show.filter(s => this.settings.shows.indexOf(s) === -1);
-      show = show.filter(s => !this.removedShows.includes(s));
+      show = show.map((s) => s.toLowerCase());
+      show = show.filter((s) => this.settings.shows.indexOf(s) === -1);
+      show = show.filter((s) => !this.removedShows.includes(s));
 
       if (show.length === 0) {
         return;
@@ -381,16 +372,16 @@ module.exports = class TorrentRSS {
   removeShow(show) {
     let removedShows;
     if (Array.isArray(show)) {
-      show = show.map(s => s.toLowerCase());
-      show = show.filter(s => this.settings.shows.indexOf(s) > -1);
+      show = show.map((s) => s.toLowerCase());
+      show = show.filter((s) => this.settings.shows.indexOf(s) > -1);
 
       if (show.length === 0) {
         return;
       }
 
-      shows.map(s => this.settings.shows.indexOf(s));
+      shows.map((s) => this.settings.shows.indexOf(s));
 
-      shows.forEach(index => this.settings.shows.splice(index, 1));
+      shows.forEach((index) => this.settings.shows.splice(index, 1));
 
       this.removedShows.push(...shows);
 
@@ -433,5 +424,16 @@ module.exports = class TorrentRSS {
       dir = `${settings.saveTo}\\${entry.title}`;
     }
     return dir;
+  }
+
+  setupListeners() {
+    emitter.register(
+      'torrentrss.add-show',
+      (show, source) => {
+        this.addShow(show, source);
+        return Promise.resolve(this.settings.shows);
+      },
+      TorrentRSS.name
+    );
   }
 };
