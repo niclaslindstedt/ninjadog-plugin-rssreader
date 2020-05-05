@@ -17,8 +17,8 @@ module.exports = class ShowStatistics {
 };
 
 class Download {
-  constructor(download) {
-    this.date = download.date;
-    this.tracker = download.tracker;
+  constructor({ date, tracker }) {
+    this.date = date;
+    this.tracker = tracker;
   }
 }

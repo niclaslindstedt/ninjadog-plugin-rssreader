@@ -4,6 +4,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const ShowStatistic = require('./Entities/ShowStatistics');
+const Show = require('./Entities/Show');
 const { extractRootDomain } = require('./helpers');
 
 const rss = new Rss();
@@ -13,7 +14,7 @@ module.exports = class TorrentRSS {
     this.construct(__dirname);
     /** @type {String[]} */
     this.downloadList = [];
-    /** @type {String[]} */
+    /** @type {Show[]} */
     this.removedShows = [];
     /** @type {ShowStatistic[]} */
     this.statistics = [];
@@ -24,7 +25,7 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
-    this.settings.shows = this.settings.shows.map((s) => s.toLowerCase());
+    this.settings.shows = this.settings.shows.map((s) => s.name.toLowerCase());
 
     this.setupListeners();
     this.loadRemovedShows();
@@ -36,6 +37,13 @@ module.exports = class TorrentRSS {
       'start',
       TorrentRSS.name
     );
+
+    if (this.settings.shows && this.settings.shows.length) {
+      /** @type {Show[]} */
+      const shows = this.settings.shows.map((show) => this.getShow(show));
+      this.settings.shows = shows;
+      this.saveSettings(this.settings);
+    }
 
     this.checkFeeds();
 
@@ -54,10 +62,12 @@ module.exports = class TorrentRSS {
 
   checkFeeds() {
     const settings = this.settings;
+    /** @type {Show[]} */
     const showsToDownload = settings.shows || [];
     const feeds = settings.feeds;
 
     feeds.forEach(async (feedUrl) => {
+      const feedDomain = extractRootDomain(feedUrl);
       let feed = await rss.parseURL(feedUrl);
 
       // Add info to entries
@@ -81,7 +91,16 @@ module.exports = class TorrentRSS {
       );
 
       // Remove entries not in the download list
-      feed = feed.filter((entry) => showsToDownload.includes(entry.title));
+      feed = feed.filter((entry) =>
+        showsToDownload.map((s) => s.name).includes(entry.title)
+      );
+
+      // Remove entries not associated to this feed via tracker
+      feed = feed.filter(
+        (entry) =>
+          showsToDownload.map((s) => s.tracker).includes(feedDomain) ||
+          showsToDownload.map((s) => s.tracker).includes('*')
+      );
 
       // Remove incorrect resolutions
       feed = feed.filter((entry) => entry.resolution === settings.resolution);
@@ -224,7 +243,9 @@ module.exports = class TorrentRSS {
   }
 
   async loadRemovedShows() {
-    this.removedShows = this.readFile(this.file('removedshows.json')) || [];
+    let removedShows = this.readFile(this.file('removedshows.json')) || [];
+    removedShows = removedShows.map((show) => this.getShow(show));
+    this.removedShows = removedShows;
   }
 
   async loadStatistics() {
@@ -236,13 +257,13 @@ module.exports = class TorrentRSS {
   }
 
   updateStatsForShow(show, downloadInfo) {
-    const idx = this.statistics.findIndex((stat) => stat.name === show);
+    const idx = this.statistics.findIndex((stat) => stat.name === show.name);
     const match = idx === -1 ? false : true;
 
     /** @type {ShowStatistic} */
     let showStat;
     if (!match) {
-      showStat = new ShowStatistic({ name: show });
+      showStat = new ShowStatistic({ name: show.name });
     } else {
       showStat = this.statistics[idx];
     }
@@ -259,18 +280,78 @@ module.exports = class TorrentRSS {
   }
 
   getShowsWithStats(shows) {
-    return shows.map((name) => {
+    return shows.map((show) => {
       const downloads = (
-        this.statistics.find((s) => s.name === name) || {
+        this.statistics.find((s) => s.name === show.name) || {
           downloads: [],
         }
       ).downloads;
 
       return {
-        name,
+        show,
         downloads,
       };
     });
+  }
+
+  setupListeners() {
+    emitter.register(
+      'torrentrss.add-show',
+      (show, source) => {
+        this.addShow(show, source);
+        return Promise.resolve(this.settings.shows);
+      },
+      TorrentRSS.name
+    );
+
+    emitter.register(
+      'qbittorrent.download-complete',
+      async (torrent) => {
+        const showInfo = ptt.parse(torrent.name);
+        if (!showInfo) {
+          return;
+        }
+
+        const show = this.settings.shows.find(
+          (s) => s.name === showInfo.title.replace('!', '').toLowerCase()
+        );
+
+        if (!show) {
+          return;
+        }
+
+        if (show.copyTo.length) {
+          const orgPath = path.join(torrent.save_path, torrent.name);
+          const newPath = path.join(show.copyTo, torrent.name);
+
+          emitter.emit(
+            'message',
+            `Copying from ${torrent.save_path} to ${show.copyTo}`,
+            'info',
+            TorrentRSS.name
+          );
+
+          try {
+            await fs.ensureDir(show.copyTo);
+            await fs.copyFile(orgPath, newPath);
+            emitter.emit(
+              'message',
+              `Finished copying ${orgPath} to ${newPath}`,
+              'success',
+              TorrentRSS.name
+            );
+          } catch (e) {
+            emitter.emit(
+              'message',
+              `Error occurred while trying to copy ${orgPath} to ${newPath}`,
+              'error',
+              TorrentRSS.name
+            );
+          }
+        }
+      },
+      TorrentRSS.name
+    );
   }
 
   addWebroutes() {
@@ -310,7 +391,7 @@ module.exports = class TorrentRSS {
           return res.status(412).send();
         }
         this.addShow(show);
-        res.status(200).send(this.settings.shows);
+        res.status(200).send(new Show({ name: show }));
       }
     );
 
@@ -320,8 +401,11 @@ module.exports = class TorrentRSS {
       `/${prefix}/shows`,
       (req, res) => {
         const show = req.query.show;
-        if (!show || this.settings.shows.indexOf(show) === -1) {
-          return;
+        if (
+          !show ||
+          this.settings.shows.map((s) => s.name).indexOf(show) === -1
+        ) {
+          return res.status(412).send();
         }
         this.removeShow(show);
         res.status(200).send(this.settings.shows);
@@ -334,8 +418,8 @@ module.exports = class TorrentRSS {
       `/${prefix}/removed-shows`,
       (req, res) => {
         const show = req.query.show;
-        if (!show || !this.removedShows.includes(show)) {
-          return;
+        if (!show || !this.removedShows.map((r) => r.name).includes(show)) {
+          return res.status(412).send();
         }
         this.restoreShow(show);
         res.status(200).send(this.settings.shows);
@@ -347,6 +431,7 @@ module.exports = class TorrentRSS {
     let newShows = 0;
     if (Array.isArray(show)) {
       show = show.map((s) => s.toLowerCase());
+      show = show.map((s) => this.getShow(s));
       show = show.filter((s) => this.settings.shows.indexOf(s) === -1);
       show = show.filter((s) => !this.removedShows.includes(s));
 
@@ -355,10 +440,10 @@ module.exports = class TorrentRSS {
       }
 
       this.settings.shows = [...this.settings.shows, ...show];
-      newShows = show.join(', ');
-    } else if (!this.removedShows.includes(show)) {
-      newShows = show;
-      this.settings.shows.push(show);
+      newShows = show.map((s) => s.Name).join(', ');
+    } else if (!this.removedShows.map((s) => s.name).includes(show)) {
+      newShows = typeof show === 'string' ? show : show.name;
+      this.settings.shows.push(this.getShow(show));
     }
 
     if (newShows) {
@@ -393,10 +478,13 @@ module.exports = class TorrentRSS {
       removedShows = show.join(', ');
     } else {
       removedShows = show;
-      if (!this.removedShows.includes(show)) {
+      show = this.settings.shows.splice(
+        this.settings.shows.indexOf(show),
+        1
+      )[0];
+      if (!this.removedShows.map((r) => r.name).includes(show.name)) {
         this.removedShows.push(show);
       }
-      this.settings.shows.splice(this.settings.shows.indexOf(show), 1);
     }
 
     if (removedShows) {
@@ -413,11 +501,12 @@ module.exports = class TorrentRSS {
   }
 
   restoreShow(show) {
-    const removedIndex = this.removedShows.indexOf(show);
-    this.removedShows.splice(removedIndex, 1);
+    const removedIndex = this.removedShows.map((r) => r.name).indexOf(show);
+    const restored = this.removedShows.splice(removedIndex, 1)[0];
+
     this.writeFile(this.file('removedshows.json'), this.removedShows);
 
-    this.addShow(show);
+    this.addShow(restored);
   }
 
   getSavePath(entry) {
@@ -429,6 +518,15 @@ module.exports = class TorrentRSS {
       dir = `${settings.saveTo}\\${entry.title}`;
     }
     return dir;
+  }
+
+  getShow(show) {
+    try {
+      if (typeof show === 'string') {
+        return new Show({ name: show.toLowerCase() });
+      }
+      return new Show(show);
+    } catch (e) {}
   }
 
   setupListeners() {
