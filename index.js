@@ -117,7 +117,9 @@ module.exports = class TorrentRSS {
               .statSync(path.resolve(entry.savePath, file))
               .mtime.getTime(),
           }))
-          .filter((file) => file.title.toLowerCase() === entry.title)
+          .filter(
+            (file) => file.title.toLowerCase() === entry.title.toLowerCase()
+          )
           .sort((a, b) => b.time - a.time);
 
         let keep = true;
