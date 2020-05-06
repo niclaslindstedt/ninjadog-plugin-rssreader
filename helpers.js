@@ -1,5 +1,5 @@
 // https://stackoverflow.com/a/23945027
-const extractHostname = url => {
+const extractHostname = (url) => {
   var hostname;
   //find & remove protocol (http, ftp, etc.) and get hostname
 
@@ -17,7 +17,7 @@ const extractHostname = url => {
   return hostname;
 };
 
-const extractRootDomain = url => {
+const extractRootDomain = (url) => {
   var domain = extractHostname(url),
     splitArr = domain.split('.'),
     arrLen = splitArr.length;
@@ -37,5 +37,5 @@ const extractRootDomain = url => {
 
 module.exports = {
   extractHostname,
-  extractRootDomain
+  extractRootDomain,
 };

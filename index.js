@@ -31,11 +31,8 @@ module.exports = class TorrentRSS {
     this.loadRemovedShows();
     this.loadStatistics();
 
-    emitter.emit(
-      'message',
-      `Started Torrent RSS feed timer (${this.settings.updateInterval}m)`,
-      'start',
-      TorrentRSS.name
+    this.logInfo(
+      `Started Torrent RSS feed timer (${this.settings.updateInterval}m)`
     );
 
     if (this.settings.shows && this.settings.shows.length) {
@@ -328,28 +325,15 @@ module.exports = class TorrentRSS {
           const orgPath = path.join(torrent.save_path, torrent.name);
           const newPath = path.join(show.copyTo, torrent.name);
 
-          emitter.emit(
-            'message',
-            `Copying from ${torrent.save_path} to ${show.copyTo}`,
-            'info',
-            TorrentRSS.name
-          );
+          this.logInfo(`Copying from ${torrent.save_path} to ${show.copyTo}`);
 
           try {
             await fs.ensureDir(show.copyTo);
             await fs.copyFile(orgPath, newPath);
-            emitter.emit(
-              'message',
-              `Finished copying ${orgPath} to ${newPath}`,
-              'success',
-              TorrentRSS.name
-            );
+            this.logInfo(`Finished copying ${orgPath} to ${newPath}`);
           } catch (e) {
-            emitter.emit(
-              'message',
-              `Error occurred while trying to copy ${orgPath} to ${newPath}`,
-              'error',
-              TorrentRSS.name
+            this.logError(
+              `Error occurred while trying to copy ${orgPath} to ${newPath}`
             );
           }
         }
@@ -451,13 +435,11 @@ module.exports = class TorrentRSS {
     }
 
     if (newShows) {
-      let message = `Added ${newShows} to list.`;
-
       if (source) {
-        message = message.replace(/(.*)\.$/, `$1 from ${source}.`);
+        this.logInfo(`Added ${newShows} to list from ${source}.`);
+      } else {
+        this.logInfo(`Added ${newShows} to list.`);
       }
-
-      emitter.emit('message', message, 'add', TorrentRSS.name);
     }
 
     this.saveSettings(this.settings);
@@ -492,13 +474,7 @@ module.exports = class TorrentRSS {
     }
 
     if (removedShows) {
-      emitter.emit(
-        'message',
-        `Removed ${removedShows} from list.`,
-        'remove',
-        TorrentRSS.name
-      );
-
+      this.logInfo(`Removed ${removedShows} from list.`);
       this.saveSettings(this.settings);
       this.writeFile(this.file('removedshows.json'), this.removedShows);
     }
