@@ -25,7 +25,7 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
-    this.settings.shows = this.settings.shows.map((s) => s.name.toLowerCase());
+    this.settings.shows = this.settings.shows.map((s) => this.getShow(s));
 
     this.setupListeners();
     this.loadRemovedShows();
