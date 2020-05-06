@@ -313,7 +313,9 @@ module.exports = class TorrentRSS {
         }
 
         const show = this.settings.shows.find(
-          (s) => s.name === showInfo.title.replace('!', '').toLowerCase()
+          (s) =>
+            s.name.toLowerCase() ===
+            showInfo.title.replace('!', '').toLowerCase()
         );
 
         if (!show) {
