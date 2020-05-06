@@ -25,7 +25,11 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
+<<<<<<< Updated upstream
     this.settings.shows = this.settings.shows.map((s) => this.getShow(s));
+=======
+    this.settings.shows = this.settings.shows.map((s) => cleanName(s.name));
+>>>>>>> Stashed changes
 
     this.setupListeners();
     this.loadRemovedShows();
@@ -81,7 +85,7 @@ module.exports = class TorrentRSS {
         .map((entry) => ({
           ...entry,
           fileName: `${entry.release}.torrent`,
-          title: entry.title.toLowerCase(),
+          title: cleanName(entry.title),
           savePath: this.getSavePath(entry),
         }));
 
@@ -108,7 +112,7 @@ module.exports = class TorrentRSS {
       // Remove incorrect sources
       feed = feed.filter(
         (entry) =>
-          entry.source === settings.source.toLowerCase() ||
+          entry.source.toLowerCase() === settings.source.toLowerCase() ||
           settings.source === ''
       );
 
@@ -136,9 +140,7 @@ module.exports = class TorrentRSS {
               .statSync(path.resolve(entry.savePath, file))
               .mtime.getTime(),
           }))
-          .filter(
-            (file) => file.title.toLowerCase() === entry.title.toLowerCase()
-          )
+          .filter((file) => cleanName(file.title) === cleanName(entry.title))
           .sort((a, b) => b.time - a.time);
 
         let keep = true;
@@ -294,6 +296,10 @@ module.exports = class TorrentRSS {
     });
   }
 
+  cleanName(name) {
+    return name.replace('!', '').toLowerCase();
+  }
+
   setupListeners() {
     emitter.register(
       'torrentrss.add-show',
@@ -313,9 +319,7 @@ module.exports = class TorrentRSS {
         }
 
         const show = this.settings.shows.find(
-          (s) =>
-            s.name.toLowerCase() ===
-            showInfo.title.replace('!', '').toLowerCase()
+          (s) => cleanName(s.name) === cleanName(showInfo.title)
         );
 
         if (!show) {
@@ -432,7 +436,7 @@ module.exports = class TorrentRSS {
   addShow(show, source) {
     let newShows = 0;
     if (Array.isArray(show)) {
-      show = show.map((s) => s.toLowerCase());
+      show = show.map((s) => cleanName(s));
       show = show.map((s) => this.getShow(s));
       show = show.filter((s) => this.settings.shows.indexOf(s) === -1);
       show = show.filter((s) => !this.removedShows.includes(s));
@@ -464,7 +468,7 @@ module.exports = class TorrentRSS {
   removeShow(show) {
     let removedShows;
     if (Array.isArray(show)) {
-      show = show.map((s) => s.toLowerCase());
+      show = show.map((s) => cleanName(s));
       show = show.filter((s) => this.settings.shows.indexOf(s) > -1);
 
       if (show.length === 0) {
@@ -525,7 +529,7 @@ module.exports = class TorrentRSS {
   getShow(show) {
     try {
       if (typeof show === 'string') {
-        return new Show({ name: show.toLowerCase() });
+        return new Show({ name: cleanName(show) });
       }
       return new Show(show);
     } catch (e) {}
