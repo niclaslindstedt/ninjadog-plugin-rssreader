@@ -20,14 +20,10 @@ module.exports = class TorrentRSS {
     this.statistics = [];
   }
 
-  file(filename) {
-    return `torrentrss_${filename}`;
-  }
-
   setup() {
+    this.logDebug('Setting up torrentrss plugin');
     this.settings.shows = this.settings.shows.map((s) => this.getShow(s));
 
-    this.setupListeners();
     this.loadRemovedShows();
     this.loadStatistics();
 
@@ -43,12 +39,108 @@ module.exports = class TorrentRSS {
     }
 
     this.checkFeeds();
+  }
 
-    setTimeout(() => {
-      if (global.Ninjakatt.plugins.has('Webserver')) {
-        this.addWebroutes();
+  subscriptions() {
+    this.subscribe('torrentrss.add-show', this.actOnAddedShow);
+    this.subscribe('qbittorrent.download-complete', this.actOnDownloadComplete);
+  }
+
+  routes() {
+    this.route('get', 'shows', this.getShows);
+    this.route('get', 'removed-shows', this.getRemovedShows);
+    this.route('post', 'shows', this.postShows);
+    this.route('delete', 'shows', this.deleteShows);
+    this.route('delete', 'removed-shows', this.deleteRemovedShows);
+  }
+
+  /********* Event Functions *********/
+
+  actOnAddedShow = (show, source) => {
+    this.addShow(show, source);
+    return Promise.resolve(this.settings.shows);
+  };
+
+  actOnDownloadComplete = async (torrent) => {
+    const showInfo = ptt.parse(torrent.name);
+    if (!showInfo) {
+      this.logDiag('Could not parse torrent info, aborting.');
+      return;
+    }
+
+    const show = this.settings.shows.find(
+      (s) => this.cleanName(s.name) === this.cleanName(showInfo.title)
+    );
+
+    if (!show) {
+      this.logDiag('Downloaded torrent is not a show, aborting.');
+      return;
+    }
+
+    if (show.copyTo.length) {
+      const orgPath = path.join(torrent.save_path, torrent.name);
+      const newPath = path.join(show.copyTo, torrent.name);
+
+      try {
+        this.logInfo(`Copying from ${torrent.save_path} to ${show.copyTo}`);
+        await fs.ensureDir(show.copyTo);
+        await fs.copyFile(orgPath, newPath);
+        this.logInfo(`Finished copying ${orgPath} to ${newPath}`);
+      } catch (e) {
+        this.logError(
+          `Error occurred while trying to copy ${orgPath} to ${newPath}`
+        );
       }
-    }, 0);
+    }
+  };
+
+  /********* Route Functions *********/
+
+  getShows = (req, res) => {
+    return res.status(200).send(this.getShowsWithStats(this.settings.shows));
+  };
+
+  getRemovedShows = (req, res) => {
+    return res.status(200).send(this.getShowsWithStats(this.removedShows));
+  };
+
+  postShows = (req, res) => {
+    const show = req.body.show;
+    if (!show) {
+      return res.status(400).send();
+    }
+    if (this.settings.shows.includes(show)) {
+      return res.status(409).send();
+    }
+    if (this.removedShows.includes(show)) {
+      return res.status(412).send();
+    }
+    this.addShow(show);
+    return res.status(200).send(new Show({ name: show }));
+  };
+
+  deleteShows = (req, res) => {
+    const show = req.query.show;
+    if (!show || this.settings.shows.map((s) => s.name).indexOf(show) === -1) {
+      return res.status(412).send();
+    }
+    this.removeShow(show);
+    return res.status(200).send(this.settings.shows);
+  };
+
+  deleteRemovedShows = (req, res) => {
+    const show = req.query.show;
+    if (!show || !this.removedShows.map((r) => r.name).includes(show)) {
+      return res.status(412).send();
+    }
+    this.restoreShow(show);
+    return res.status(200).send(this.settings.shows);
+  };
+
+  /********* Plugin Functions *********/
+
+  file(filename) {
+    return `torrentrss_${filename}`;
   }
 
   feedTimer() {
@@ -119,6 +211,11 @@ module.exports = class TorrentRSS {
       // Remove packs if not wanted
       if (settings.skipPacks === true) {
         feed = feed.filter((entry) => !!entry.episode);
+      }
+
+      // Fix save path (don't end filenames with .)
+      while (feed.savePath.match(/\.$/)) {
+        feed.savePath.substr(0, feed.savePath.length - 1);
       }
 
       // Check local files and remove duplicates if not proper or repack
@@ -295,126 +392,6 @@ module.exports = class TorrentRSS {
     return name.replace('!', '').toLowerCase();
   }
 
-  setupListeners() {
-    emitter.register(
-      'torrentrss.add-show',
-      (show, source) => {
-        this.addShow(show, source);
-        return Promise.resolve(this.settings.shows);
-      },
-      TorrentRSS.name
-    );
-
-    emitter.register(
-      'qbittorrent.download-complete',
-      async (torrent) => {
-        const showInfo = ptt.parse(torrent.name);
-        if (!showInfo) {
-          return;
-        }
-
-        const show = this.settings.shows.find(
-          (s) => this.cleanName(s.name) === this.cleanName(showInfo.title)
-        );
-
-        if (!show) {
-          return;
-        }
-
-        if (show.copyTo.length) {
-          const orgPath = path.join(torrent.save_path, torrent.name);
-          const newPath = path.join(show.copyTo, torrent.name);
-
-          this.logInfo(`Copying from ${torrent.save_path} to ${show.copyTo}`);
-
-          try {
-            await fs.ensureDir(show.copyTo);
-            await fs.copyFile(orgPath, newPath);
-            this.logInfo(`Finished copying ${orgPath} to ${newPath}`);
-          } catch (e) {
-            this.logError(
-              `Error occurred while trying to copy ${orgPath} to ${newPath}`
-            );
-          }
-        }
-      },
-      TorrentRSS.name
-    );
-  }
-
-  addWebroutes() {
-    const prefix = TorrentRSS.name.toLowerCase();
-
-    emitter.emit(
-      'webserver.add-route',
-      'get',
-      `/${prefix}/shows`,
-      (req, res) => {
-        res.status(200).send(this.getShowsWithStats(this.settings.shows));
-      }
-    );
-
-    emitter.emit(
-      'webserver.add-route',
-      'get',
-      `/${prefix}/removed-shows`,
-      (req, res) => {
-        res.status(200).send(this.getShowsWithStats(this.removedShows));
-      }
-    );
-
-    emitter.emit(
-      'webserver.add-route',
-      'post',
-      `/${prefix}/shows`,
-      (req, res) => {
-        const show = req.body.show;
-        if (!show) {
-          return res.status(400).send();
-        }
-        if (this.settings.shows.includes(show)) {
-          return res.status(409).send();
-        }
-        if (this.removedShows.includes(show)) {
-          return res.status(412).send();
-        }
-        this.addShow(show);
-        res.status(200).send(new Show({ name: show }));
-      }
-    );
-
-    emitter.emit(
-      'webserver.add-route',
-      'delete',
-      `/${prefix}/shows`,
-      (req, res) => {
-        const show = req.query.show;
-        if (
-          !show ||
-          this.settings.shows.map((s) => s.name).indexOf(show) === -1
-        ) {
-          return res.status(412).send();
-        }
-        this.removeShow(show);
-        res.status(200).send(this.settings.shows);
-      }
-    );
-
-    emitter.emit(
-      'webserver.add-route',
-      'delete',
-      `/${prefix}/removed-shows`,
-      (req, res) => {
-        const show = req.query.show;
-        if (!show || !this.removedShows.map((r) => r.name).includes(show)) {
-          return res.status(412).send();
-        }
-        this.restoreShow(show);
-        res.status(200).send(this.settings.shows);
-      }
-    );
-  }
-
   addShow(show, source) {
     let newShows = 0;
     if (Array.isArray(show)) {
@@ -507,16 +484,5 @@ module.exports = class TorrentRSS {
       }
       return new Show(show);
     } catch (e) {}
-  }
-
-  setupListeners() {
-    emitter.register(
-      'torrentrss.add-show',
-      (show, source) => {
-        this.addShow(show, source);
-        return Promise.resolve(this.settings.shows);
-      },
-      TorrentRSS.name
-    );
   }
 };
