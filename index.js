@@ -214,8 +214,10 @@ module.exports = class TorrentRSS {
       }
 
       // Fix save path (don't end filenames with .)
-      while (feed.savePath.match(/\.$/)) {
-        feed.savePath.substr(0, feed.savePath.length - 1);
+      if (feed.savePath) {
+        while (feed.savePath.match(/\.$/)) {
+          feed.savePath.substr(0, feed.savePath.length - 1);
+        }
       }
 
       // Check local files and remove duplicates if not proper or repack
@@ -483,6 +485,6 @@ module.exports = class TorrentRSS {
         return new Show({ name: this.cleanName(show) });
       }
       return new Show(show);
-    } catch (e) {}
+    } catch (e) { }
   }
 };
