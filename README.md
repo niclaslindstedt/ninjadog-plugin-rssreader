@@ -1,1 +1,1 @@
-ninjakatt-plugin-torrentrss
+ninjadog-plugin-rssfeed

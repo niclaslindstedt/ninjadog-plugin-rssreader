@@ -21,7 +21,7 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
-    this.logDebug('Setting up torrentrss plugin');
+    this.logDebug('Setting up rssfeed plugin');
     this.settings.shows = this.settings.shows.map((s) => this.getShow(s));
 
     this.loadRemovedShows();
@@ -42,7 +42,7 @@ module.exports = class TorrentRSS {
   }
 
   subscriptions() {
-    this.subscribe('torrentrss.add-show', this.actOnAddedShow);
+    this.subscribe('rssfeed.add-show', this.actOnAddedShow);
     this.subscribe('qbittorrent.download-complete', this.actOnDownloadComplete);
   }
 
@@ -140,7 +140,7 @@ module.exports = class TorrentRSS {
   /********* Plugin Functions *********/
 
   file(filename) {
-    return `torrentrss_${filename}`;
+    return `rssfeed_${filename}`;
   }
 
   feedTimer() {
@@ -395,6 +395,7 @@ module.exports = class TorrentRSS {
   }
 
   addShow(show, source) {
+    this.logDebug(`Adding ${show} to rss.`);
     let newShows = 0;
     if (Array.isArray(show)) {
       show = show.map((s) => this.cleanName(s));
@@ -403,6 +404,7 @@ module.exports = class TorrentRSS {
       show = show.filter((s) => !this.removedShows.includes(s));
 
       if (show.length === 0) {
+        this.logDebug(`Skipping show -- invalid name`);
         return;
       }
 
@@ -485,6 +487,6 @@ module.exports = class TorrentRSS {
         return new Show({ name: this.cleanName(show) });
       }
       return new Show(show);
-    } catch (e) { }
+    } catch (e) {}
   }
 };
