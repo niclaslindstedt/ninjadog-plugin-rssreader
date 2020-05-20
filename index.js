@@ -186,7 +186,7 @@ module.exports = class TorrentRSS {
 
       // Remove entries not associated to this feed via tracker
       feed = feed.filter(
-        (entry) =>
+        () =>
           showsToDownload.map((s) => s.tracker).includes(feedDomain) ||
           showsToDownload.map((s) => s.tracker).includes('*')
       );
@@ -404,7 +404,7 @@ module.exports = class TorrentRSS {
       show = show.filter((s) => !this.removedShows.includes(s));
 
       if (show.length === 0) {
-        this.logDebug(`Skipping show -- invalid name`);
+        this.logDebug('Skipping show -- invalid name');
         return;
       }
 
@@ -436,11 +436,11 @@ module.exports = class TorrentRSS {
         return;
       }
 
-      shows.map((s) => this.settings.shows.indexOf(s));
+      show.map((s) => this.settings.shows.indexOf(s));
 
-      shows.forEach((index) => this.settings.shows.splice(index, 1));
+      show.forEach((index) => this.settings.shows.splice(index, 1));
 
-      this.removedShows.push(...shows);
+      this.removedShows.push(...show);
 
       removedShows = show.join(', ');
     } else {
@@ -487,6 +487,8 @@ module.exports = class TorrentRSS {
         return new Show({ name: this.cleanName(show) });
       }
       return new Show(show);
-    } catch (e) {}
+    } catch (e) {
+      this.logError(e);
+    }
   }
 };
