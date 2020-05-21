@@ -9,7 +9,7 @@ const { extractRootDomain } = require('./helpers');
 
 const rss = new Rss();
 const emitter = global.emitter;
-module.exports = class TorrentRSS {
+module.exports = class RSSReader {
 
   constructor() {
     this.construct(__dirname);
