@@ -417,9 +417,9 @@ module.exports = class TorrentRSS {
 
     if (newShows) {
       if (source) {
-        this.logAddition(`Added ${newShows} to list from ${source}.`);
+        this.logInfo(`Added ${newShows} to list from ${source}.`);
       } else {
-        this.logAddition(`Added ${newShows} to list.`);
+        this.logInfo(`Added ${newShows} to list.`);
       }
     }
 
@@ -455,7 +455,7 @@ module.exports = class TorrentRSS {
     }
 
     if (removedShows) {
-      this.logRemoval(`Removed ${removedShows} from list.`);
+      this.logInfo(`Removed ${removedShows} from list.`);
       this.saveSettings(this.settings);
       this.writeFile(this.file('removedshows.json'), this.removedShows);
     }
