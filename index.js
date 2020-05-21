@@ -22,7 +22,6 @@ module.exports = class TorrentRSS {
   }
 
   setup() {
-    this.logDebug('Setting up rssfeed plugin');
     this.settings.shows = this.settings.shows.map((s) => this.getShow(s));
 
     this.loadRemovedShows();
@@ -55,7 +54,7 @@ module.exports = class TorrentRSS {
     this.route('delete', 'removed-shows', this.deleteRemovedShows);
   }
 
-  /** ******* Event Functions *********/
+  /** Event Functions **/
 
   actOnAddedShow = (show, source) => {
     this.addShow(show, source);
@@ -95,7 +94,7 @@ module.exports = class TorrentRSS {
     }
   };
 
-  /** ******* Route Functions *********/
+  /** Route Functions **/
 
   getShows = (req, res) => {
     return res.status(200).send(this.getShowsWithStats(this.settings.shows));
@@ -138,7 +137,7 @@ module.exports = class TorrentRSS {
     return res.status(200).send(this.settings.shows);
   };
 
-  /** ******* Plugin Functions *********/
+  /** Plugin Functions **/
 
   file(filename) {
     return `rssfeed_${filename}`;
