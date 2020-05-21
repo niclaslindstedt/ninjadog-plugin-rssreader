@@ -1,4 +1,5 @@
 module.exports = class Show {
+
   constructor({ name, copyTo = '', tracker = '*' }) {
     /**
      * @type {String}
@@ -18,4 +19,5 @@ module.exports = class Show {
      */
     this.tracker = tracker;
   }
+
 };

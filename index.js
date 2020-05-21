@@ -10,6 +10,7 @@ const { extractRootDomain } = require('./helpers');
 const rss = new Rss();
 const emitter = global.emitter;
 module.exports = class TorrentRSS {
+
   constructor() {
     this.construct(__dirname);
     /** @type {String[]} */
@@ -54,7 +55,7 @@ module.exports = class TorrentRSS {
     this.route('delete', 'removed-shows', this.deleteRemovedShows);
   }
 
-  /********* Event Functions *********/
+  /** ******* Event Functions *********/
 
   actOnAddedShow = (show, source) => {
     this.addShow(show, source);
@@ -94,7 +95,7 @@ module.exports = class TorrentRSS {
     }
   };
 
-  /********* Route Functions *********/
+  /** ******* Route Functions *********/
 
   getShows = (req, res) => {
     return res.status(200).send(this.getShowsWithStats(this.settings.shows));
@@ -137,7 +138,7 @@ module.exports = class TorrentRSS {
     return res.status(200).send(this.settings.shows);
   };
 
-  /********* Plugin Functions *********/
+  /** ******* Plugin Functions *********/
 
   file(filename) {
     return `rssfeed_${filename}`;
@@ -491,4 +492,5 @@ module.exports = class TorrentRSS {
       this.logError(e);
     }
   }
+
 };
